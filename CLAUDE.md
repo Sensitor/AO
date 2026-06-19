@@ -12,7 +12,7 @@ Pipeline : upload AO → extraction des exigences → matrice de conformité (vs
 - API : FastAPI (Python 3.12), SQLAlchemy 2.0, Alembic
 - DB : PostgreSQL 16 + pgvector
 - Auth : JWT (HS256), mots de passe bcrypt
-- Frontend (à venir) : Next.js App Router
+- Frontend : Next.js App Router (TypeScript + Tailwind) dans `web/`, branché sur l'API
 - Storage (à venir) : S3-compatible
 - LLM : API GPT-class
 
@@ -23,9 +23,12 @@ Principes : MVP-first, simple et robuste, **pas de sur-ingénierie** (pas de mul
 docker compose up --build                                   # lance db + api (migrations auto)
 docker compose run --rm api alembic upgrade head            # appliquer les migrations
 docker compose run --rm api alembic revision --autogenerate -m "msg"  # nouvelle migration
+cd web && npm install && npm run dev                        # frontend Next.js (http://localhost:3000)
 ```
 - API : http://localhost:8000 · Swagger : /docs · Santé : /health
 - Login Swagger : champ `username` = email.
+- Frontend : `web/`, env `NEXT_PUBLIC_API_URL` (cf. `.env.local.example`). L'API doit
+  autoriser l'origine du front via `FRONTEND_ORIGIN` (défaut `http://localhost:3000`).
 
 ## Architecture des fichiers
 ```
