@@ -47,3 +47,31 @@ class ProjectOut(BaseModel):
     status: str
     deadline: date | None
     created_at: datetime
+
+
+class DocumentOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    org_id: uuid.UUID
+    project_id: uuid.UUID | None
+    kind: str
+    filename: str
+    content_type: str | None
+    status: str
+    chunk_count: int
+    error: str | None
+    created_at: datetime
+
+
+class SearchIn(BaseModel):
+    query: str
+    k: int = 5
+
+
+class ChunkMatch(BaseModel):
+    document_id: uuid.UUID
+    filename: str
+    chunk_index: int
+    content: str
+    score: float

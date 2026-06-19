@@ -1,9 +1,11 @@
 import uuid
 
-from sqlalchemy import Column, Date, DateTime, ForeignKey, String, func
+from pgvector.sqlalchemy import Vector
+from sqlalchemy import Column, Date, DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
+from .config import settings
 from .database import Base
 
 
@@ -43,3 +45,44 @@ class Project(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     org = relationship("Organization", back_populates="projects")
+
+
+class Document(Base):
+    __tablename__ = "documents"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    org_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True)
+    # "internal" = base documentaire interne, "tender" = AO à analyser
+    kind = Column(String, nullable=False, default="internal")
+    filename = Column(String, nullable=False)
+    content_type = Column(String, nullable=True)
+    s3_key = Column(String, nullable=False)
+    size_bytes = Column(Integer, nullable=True)
+    # pending -> processing -> ready | failed
+    status = Column(String, nullable=False, default="pending")
+    error = Column(String, nullable=True)
+    chunk_count = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    chunks = relationship(
+        "DocumentChunk", back_populates="document", cascade="all, delete-orphan"
+    )
+
+
+class DocumentChunk(Base):
+    __tablename__ = "document_chunks"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    org_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    document_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("documents.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    chunk_index = Column(Integer, nullable=False)
+    content = Column(Text, nullable=False)
+    embedding = Column(Vector(settings.embedding_dim), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    document = relationship("Document", back_populates="chunks")
