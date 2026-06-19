@@ -133,3 +133,40 @@ def judge_compliance(requirement_text: str, excerpts: list[str]) -> ComplianceLL
             return ComplianceLLM(
                 verdict="manquant", rationale="Réponse du modèle illisible."
             )
+
+
+PLACEHOLDER = "[À compléter]"
+
+SECTION_SYSTEM_PROMPT = (
+    "Tu rédiges la réponse d'une entreprise à une exigence d'appel d'offres, "
+    "à partir UNIQUEMENT des extraits de sa base documentaire interne.\n"
+    "Règles impératives :\n"
+    "1. N'invente JAMAIS un fait (projet, client, certification, chiffre, "
+    "intégration) qui n'est pas présent dans les extraits.\n"
+    f"2. Si un aspect de l'exigence n'est pas couvert par les extraits, écris "
+    f"littéralement {PLACEHOLDER} à cet endroit.\n"
+    "3. Style professionnel et concis, à la première personne du pluriel (« nous »).\n"
+    "4. Réponds uniquement par le texte de la réponse, sans titre ni préambule."
+)
+
+
+def generate_section(requirement_text: str, obligation: str, excerpts: list[str]) -> str:
+    """Rédige un paragraphe de réponse sourcé. Renvoie [À compléter] si non couvert."""
+    if not excerpts:
+        return PLACEHOLDER
+    context = "\n\n".join(f"[Extrait {i + 1}] {e}" for i, e in enumerate(excerpts))
+    user = (
+        f"EXIGENCE :\n{requirement_text}\n\n"
+        f"NIVEAU : {obligation}\n\n"
+        f"EXTRAITS INTERNES :\n{context}"
+    )
+    resp = _client().chat.completions.create(
+        model=settings.llm_model,
+        messages=[
+            {"role": "system", "content": SECTION_SYSTEM_PROMPT},
+            {"role": "user", "content": user},
+        ],
+        temperature=0.2,
+    )
+    text = (resp.choices[0].message.content or "").strip()
+    return text or PLACEHOLDER

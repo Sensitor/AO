@@ -1,9 +1,11 @@
-# AO Copilot — Backend (Sprint 3)
+# AO Copilot — Backend (Sprint 4)
 
-API FastAPI + PostgreSQL/pgvector + Docker. Auth JWT, CRUD projets, ingestion de
-documents (upload S3 → parsing → chunking → embeddings) avec recherche sémantique,
-extraction des exigences d'un AO via LLM (JSON validé Pydantic), et matrice de
-conformité (RAG sur la base interne + jugement LLM sourcé).
+API FastAPI + PostgreSQL/pgvector + Docker. Pipeline complet : ingestion de
+documents (S3 → parsing → chunking → embeddings + recherche sémantique),
+extraction des exigences d'un AO (LLM, JSON validé Pydantic), matrice de
+conformité (RAG base interne + jugement LLM sourcé), génération des sections de
+réponse et export DOCX. Règle absolue : aucune invention, zones non couvertes
+rendues `[À compléter]`.
 
 ## Stack
 - **API** : FastAPI (Python 3.12), SQLAlchemy 2.0, Alembic
@@ -132,6 +134,26 @@ curl -X PATCH "http://localhost:8000/projects/$PROJECT_ID/compliance/$REQ_ID" \
 (document, extrait, score) pour tracer le jugement. `build` est idempotent et ne
 réécrit pas les entrées ajustées manuellement.
 
+### Sections de réponse + export DOCX (Sprint 4)
+
+Génération d'une section par exigence à partir des preuves internes de la matrice ;
+toute zone non couverte est rendue littéralement `[À compléter]` (jamais d'invention).
+
+```bash
+# Générer les sections (s'appuie sur la matrice de conformité)
+curl -X POST "http://localhost:8000/projects/$PROJECT_ID/sections/generate" \
+  -H "Authorization: Bearer $TOKEN"
+
+# Éditer une section (passe en status=edited, préservé au regénérer)
+curl -X PATCH "http://localhost:8000/projects/$PROJECT_ID/sections/$REQ_ID" \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"content":"Notre réponse révisée..."}'
+
+# Exporter la réponse assemblée en DOCX
+curl -L "http://localhost:8000/projects/$PROJECT_ID/sections/export" \
+  -H "Authorization: Bearer $TOKEN" -o reponse.docx
+```
+
 ## Structure
 
 ```
@@ -148,7 +170,8 @@ ao-copilot/
     │       ├── 0001_initial.py       # organizations, users, projects
     │       ├── 0002_documents.py     # documents, document_chunks (VECTOR 1536)
     │       ├── 0003_requirements.py  # requirements (exigences AO)
-    │       └── 0004_compliance.py    # compliance_entries (matrice)
+    │       ├── 0004_compliance.py    # compliance_entries (matrice)
+    │       └── 0005_sections.py      # sections (réponses + export DOCX)
     └── app/
         ├── main.py          # app FastAPI + CORS + /health + lifespan (bucket)
         ├── config.py        # settings (env)
@@ -161,14 +184,16 @@ ao-copilot/
         ├── text_extract.py  # extraction PDF/texte + chunking
         ├── embeddings.py    # embeddings OpenAI
         ├── pipeline.py      # ingestion async (BackgroundTasks)
-        ├── llm.py           # LLM : extraction exigences + jugement conformité
+        ├── llm.py           # LLM : extraction + jugement conformité + génération sections
         ├── compliance.py    # RAG base interne (pgvector) + assess_requirement
+        ├── export.py        # export DOCX (python-docx)
         └── routers/
             ├── auth.py         # register / login
             ├── projects.py     # CRUD projets (scopé org)
             ├── documents.py    # upload / list / delete / search (scopé org)
             ├── requirements.py # extract / list / add / edit / delete (scopé org)
-            └── compliance.py   # build / get / adjust matrice (scopé org)
+            ├── compliance.py   # build / get / adjust matrice (scopé org)
+            └── sections.py     # generate / list / edit / export DOCX (scopé org)
 ```
 
 ## Migrations
@@ -178,6 +203,5 @@ docker compose run --rm api alembic revision --autogenerate -m "message"
 docker compose run --rm api alembic upgrade head
 ```
 
-## Prochaine étape — Sprint 4 (Génération de sections + export DOCX)
-Génération des sections de réponse à partir de la matrice (zones non couvertes
-rendues `[À compléter]`), éditeur, puis export DOCX (python-docx).
+## Prochaine étape — Sprint 5 (Finition + facturation)
+Finitions avant lancement et facturation Stripe (nécessite des clés Stripe de test).

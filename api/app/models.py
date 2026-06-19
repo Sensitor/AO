@@ -142,3 +142,29 @@ class ComplianceEntry(Base):
     updated_at = Column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class Section(Base):
+    __tablename__ = "sections"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    org_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    project_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    requirement_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("requirements.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    )
+    title = Column(String, nullable=False)
+    content = Column(Text, nullable=False, default="[À compléter]")
+    # generated (rédigé sourcé) | empty ([À compléter]) | edited (modifié à la main)
+    status = Column(String, nullable=False, default="generated")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )

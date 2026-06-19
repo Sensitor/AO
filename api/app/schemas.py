@@ -228,3 +228,24 @@ class ComplianceOut(BaseModel):
     status: str
     created_at: datetime
     updated_at: datetime
+
+
+# --- Sprint 4 : sections de réponse ---
+
+class SectionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    project_id: uuid.UUID
+    requirement_id: uuid.UUID
+    title: str
+    content: str
+    status: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class SectionUpdate(BaseModel):
+    title: str | None = None
+    content: str | None = None
+    status: str | None = None
