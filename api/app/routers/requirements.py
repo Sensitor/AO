@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..deps import get_current_user
+from ..deps import get_current_user, require_active_subscription
 from ..llm import extract_requirements
 from ..models import Document, Project, Requirement, User
 from ..schemas import (
@@ -60,7 +60,7 @@ def extract_project_requirements(
     project_id: uuid.UUID,
     body: ExtractIn,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_active_subscription),
 ):
     """Extrait les exigences d'un document AO via LLM et les stocke (ré-extraction idempotente)."""
     _owned_project(project_id, db, user)

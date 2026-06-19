@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from ..compliance import assess_requirement
 from ..database import get_db
-from ..deps import get_current_user
+from ..deps import get_current_user, require_active_subscription
 from ..models import ComplianceEntry, Project, Requirement, User
 from ..schemas import ComplianceAdjust, ComplianceOut
 from ..schemas import _normalize_verdict
@@ -60,7 +60,7 @@ def _matrix(project_id: uuid.UUID, org_id, db: Session) -> list[ComplianceOut]:
 def build_matrix(
     project_id: uuid.UUID,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_active_subscription),
 ):
     """Construit la matrice de conformité (RAG interne + jugement LLM sourcé).
 

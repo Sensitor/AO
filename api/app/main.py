@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import settings
 from .routers import (
     auth,
+    billing,
     compliance,
     documents,
     projects,
@@ -44,6 +45,7 @@ app.include_router(documents.router)
 app.include_router(requirements.router)
 app.include_router(compliance.router)
 app.include_router(sections.router)
+app.include_router(billing.router)
 
 
 @app.get("/health", tags=["system"])

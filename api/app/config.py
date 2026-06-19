@@ -35,5 +35,12 @@ class Settings(BaseSettings):
     # --- Sprint 3 : matrice de conformité (RAG) ---
     compliance_top_k: int = 5
 
+    # --- Sprint 5 : facturation Stripe (opt-in : vide => gating désactivé) ---
+    stripe_secret_key: str = ""
+    stripe_webhook_secret: str = ""
+    stripe_price_id: str = ""  # ID de prix de l'abonnement mensuel
+    billing_success_url: str = "http://localhost:3000/billing/success"
+    billing_cancel_url: str = "http://localhost:3000/billing/cancel"
+
 
 settings = Settings()

@@ -249,3 +249,16 @@ class SectionUpdate(BaseModel):
     title: str | None = None
     content: str | None = None
     status: str | None = None
+
+
+# --- Sprint 5 : facturation ---
+
+class SubscriptionOut(BaseModel):
+    billing_enabled: bool
+    status: str
+    plan: str | None = None
+    current_period_end: datetime | None = None
+
+
+class CheckoutOut(BaseModel):
+    url: str

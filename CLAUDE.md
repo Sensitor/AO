@@ -44,13 +44,16 @@ api/app/
   llm.py         # LLM : extraction exigences + jugement conformité + génération sections
   compliance.py  # RAG base interne (pgvector) + assess_requirement (sourcé)
   export.py      # export DOCX de la réponse (python-docx)
+  billing.py     # Stripe : checkout abonnement + vérif webhook (opt-in config)
+  deps.py + require_active_subscription  # gating par abonnement (opt-in)
   routers/auth.py         # register, login
   routers/projects.py     # CRUD projets, scopé par org_id
   routers/documents.py    # upload / list / get / delete / search, scopé par org_id
   routers/requirements.py # extract / list / add / edit / delete exigences (revue)
   routers/compliance.py   # build / get / adjust matrice de conformité
   routers/sections.py     # generate / list / edit / export DOCX
-api/migrations/        # Alembic (0001 initial, 0002 docs+chunks, 0003 requirements, 0004 compliance, 0005 sections)
+  routers/billing.py      # checkout / subscription / webhook (Stripe)
+api/migrations/        # Alembic 0001..0006 (initial, docs+chunks, requirements, compliance, sections, subscriptions)
 ```
 
 ## État d'avancement
@@ -59,7 +62,7 @@ api/migrations/        # Alembic (0001 initial, 0002 docs+chunks, 0003 requireme
 - **Sprint 2 — FAIT** : extraction des exigences d'un AO via LLM (`gpt-4o-mini`, JSON mode, sortie validée Pydantic, règle « ne jamais inventer » dans le prompt), segmentation du texte long + dédup, modèle `Requirement` (scopé `org_id`/`project_id`, lié au document source), migration `0003`. Backend de l'écran de revue : `POST /projects/{id}/requirements/extract` (ré-extraction idempotente) + `GET`/`POST`/`PATCH`/`DELETE` pour lister/ajouter/éditer (valider/rejeter)/supprimer. Pas de frontend (Next.js à venir). Vérifié e2e sur la stack Docker.
 - **Sprint 3 — FAIT** : matrice de conformité. Pour chaque exigence : RAG pgvector sur la base interne (`kind='internal'`, top-k cosine) + jugement LLM **sourcé** (`conforme`/`partiel`/`manquant`) avec règle « pas de preuve interne = MANQUANT, jamais d'invention ». Modèle `ComplianceEntry` (preuves stockées en JSONB), migration `0004`. Endpoints `POST /projects/{id}/compliance/build` (idempotent, préserve les ajustements manuels), `GET` (matrice), `PATCH /{requirement_id}` (ajustement manuel). Vérifié e2e.
 - **Sprint 4 — FAIT** : génération de sections de réponse (une par exigence) à partir des preuves internes de la matrice — zone non couverte rendue littéralement `[À compléter]`, jamais d'invention. Modèle `Section`, migration `0005`. Endpoints `POST /projects/{id}/sections/generate` (idempotent, préserve les sections éditées), `GET`/`PATCH`/`DELETE`, et `GET /projects/{id}/sections/export` (DOCX via python-docx). Vérifié e2e (DOCX produit + `[À compléter]` présent).
-- **Sprint 5 — À FAIRE (prochain)** : finition + facturation Stripe avant lancement. NB : nécessite des clés Stripe (compte test) pour être vérifié de bout en bout.
+- **Sprint 5 — FAIT (Stripe, opt-in)** : facturation Stripe par abonnement. Modèle `Subscription` (par org), migration `0006`. `POST /billing/checkout` (session Checkout abonnement), `GET /billing/subscription` (statut), `POST /billing/webhook` (signature vérifiée, synchro `checkout.session.completed` / `customer.subscription.updated|deleted`). Gating `require_active_subscription` sur les actions à valeur (extract, compliance/build, sections/generate, export). **Opt-in** : `STRIPE_SECRET_KEY` vide ⇒ facturation désactivée, tout passe (dev/gratuit). Code vérifié e2e en mode désactivé ; le flux Stripe réel se vérifie en ajoutant les clés test dans `.env`.
 
 ## Décisions tranchées (2026-06-18, avant Sprint 1)
 1. **Embeddings** : OpenAI `text-embedding-3-small` → colonne `VECTOR(1536)` pour `document_chunks`.

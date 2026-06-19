@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..deps import get_current_user
+from ..deps import get_current_user, require_active_subscription
 from ..export import build_response_docx
 from ..llm import PLACEHOLDER, generate_section
 from ..models import ComplianceEntry, Project, Requirement, Section, User
@@ -49,7 +49,7 @@ def _section_for(
 def generate_sections(
     project_id: uuid.UUID,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_active_subscription),
 ):
     """Rédige une section par exigence à partir des preuves internes de la matrice.
 
@@ -144,7 +144,7 @@ def list_sections(
 def export_docx(
     project_id: uuid.UUID,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_active_subscription),
 ):
     """Exporte la réponse assemblée en .docx."""
     project = _owned_project(project_id, db, user)

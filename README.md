@@ -1,11 +1,11 @@
-# AO Copilot — Backend (Sprint 4)
+# AO Copilot — Backend (Sprint 5)
 
 API FastAPI + PostgreSQL/pgvector + Docker. Pipeline complet : ingestion de
 documents (S3 → parsing → chunking → embeddings + recherche sémantique),
 extraction des exigences d'un AO (LLM, JSON validé Pydantic), matrice de
 conformité (RAG base interne + jugement LLM sourcé), génération des sections de
-réponse et export DOCX. Règle absolue : aucune invention, zones non couvertes
-rendues `[À compléter]`.
+réponse, export DOCX, et facturation Stripe (abonnement, opt-in). Règle absolue :
+aucune invention, zones non couvertes rendues `[À compléter]`.
 
 ## Stack
 - **API** : FastAPI (Python 3.12), SQLAlchemy 2.0, Alembic
@@ -154,6 +154,28 @@ curl -L "http://localhost:8000/projects/$PROJECT_ID/sections/export" \
   -H "Authorization: Bearer $TOKEN" -o reponse.docx
 ```
 
+### Facturation Stripe (Sprint 5, opt-in)
+
+Abonnement mensuel. **Opt-in** : tant que `STRIPE_SECRET_KEY` est vide, la
+facturation est désactivée et toutes les actions passent (mode dev/gratuit).
+Une fois les clés Stripe (test) renseignées dans `.env`, un abonnement actif
+devient requis pour les actions à valeur (extraction, matrice, génération, export).
+
+```bash
+# Statut d'abonnement de l'organisation
+curl "http://localhost:8000/billing/subscription" -H "Authorization: Bearer $TOKEN"
+
+# Démarrer un abonnement (renvoie une URL Stripe Checkout)
+curl -X POST "http://localhost:8000/billing/checkout" -H "Authorization: Bearer $TOKEN"
+
+# Webhook (appelé par Stripe, hors auth, signature vérifiée) :
+#   stripe listen --forward-to localhost:8000/billing/webhook
+```
+
+Config requise (`.env`) : `STRIPE_SECRET_KEY`, `STRIPE_PRICE_ID` (prix de
+l'abonnement), `STRIPE_WEBHOOK_SECRET`. Événements traités :
+`checkout.session.completed`, `customer.subscription.updated|deleted`.
+
 ## Structure
 
 ```
@@ -171,7 +193,8 @@ ao-copilot/
     │       ├── 0002_documents.py     # documents, document_chunks (VECTOR 1536)
     │       ├── 0003_requirements.py  # requirements (exigences AO)
     │       ├── 0004_compliance.py    # compliance_entries (matrice)
-    │       └── 0005_sections.py      # sections (réponses + export DOCX)
+    │       ├── 0005_sections.py      # sections (réponses + export DOCX)
+    │       └── 0006_subscriptions.py # subscriptions (facturation Stripe)
     └── app/
         ├── main.py          # app FastAPI + CORS + /health + lifespan (bucket)
         ├── config.py        # settings (env)
@@ -187,13 +210,15 @@ ao-copilot/
         ├── llm.py           # LLM : extraction + jugement conformité + génération sections
         ├── compliance.py    # RAG base interne (pgvector) + assess_requirement
         ├── export.py        # export DOCX (python-docx)
+        ├── billing.py       # Stripe : checkout + webhook (opt-in)
         └── routers/
             ├── auth.py         # register / login
             ├── projects.py     # CRUD projets (scopé org)
             ├── documents.py    # upload / list / delete / search (scopé org)
             ├── requirements.py # extract / list / add / edit / delete (scopé org)
             ├── compliance.py   # build / get / adjust matrice (scopé org)
-            └── sections.py     # generate / list / edit / export DOCX (scopé org)
+            ├── sections.py     # generate / list / edit / export DOCX (scopé org)
+            └── billing.py      # checkout / subscription / webhook (Stripe)
 ```
 
 ## Migrations
@@ -203,5 +228,7 @@ docker compose run --rm api alembic revision --autogenerate -m "message"
 docker compose run --rm api alembic upgrade head
 ```
 
-## Prochaine étape — Sprint 5 (Finition + facturation)
-Finitions avant lancement et facturation Stripe (nécessite des clés Stripe de test).
+## État
+Sprints 0→5 livrés. Le pipeline produit complet tourne (auth → projets → ingestion
+→ recherche → exigences → matrice de conformité → sections → DOCX → facturation
+Stripe opt-in). Frontend Next.js à venir.
