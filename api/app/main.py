@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
-from .routers import auth, documents, projects, requirements
+from .routers import auth, compliance, documents, projects, requirements
 from .storage import ensure_bucket
 
 logger = logging.getLogger("ao")
@@ -35,6 +35,7 @@ app.include_router(auth.router)
 app.include_router(projects.router)
 app.include_router(documents.router)
 app.include_router(requirements.router)
+app.include_router(compliance.router)
 
 
 @app.get("/health", tags=["system"])

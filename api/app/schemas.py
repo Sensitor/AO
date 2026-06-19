@@ -27,6 +27,28 @@ def _normalize_obligation(value) -> str:
     return _OBLIGATION_SYNONYMS.get(s, "obligatoire")
 
 
+VERDICTS = {"conforme", "partiel", "manquant"}
+
+_VERDICT_SYNONYMS = {
+    "conforme": "conforme", "compliant": "conforme", "oui": "conforme",
+    "yes": "conforme", "full": "conforme", "complete": "conforme",
+    "partiel": "partiel", "partielle": "partiel", "partial": "partiel",
+    "partiellement": "partiel",
+    "manquant": "manquant", "manquante": "manquant", "missing": "manquant",
+    "non": "manquant", "no": "manquant", "absent": "manquant", "none": "manquant",
+}
+
+
+def _normalize_verdict(value) -> str:
+    # Par défaut MANQUANT : on ne suppose jamais la conformité sans preuve.
+    if not value:
+        return "manquant"
+    s = str(value).strip().lower()
+    if s in VERDICTS:
+        return s
+    return _VERDICT_SYNONYMS.get(s, "manquant")
+
+
 class RegisterIn(BaseModel):
     email: EmailStr
     password: str
@@ -162,3 +184,47 @@ class RequirementOut(BaseModel):
     source_excerpt: str | None
     status: str
     created_at: datetime
+
+
+# --- Sprint 3 : matrice de conformité ---
+
+class ComplianceSource(BaseModel):
+    document_id: uuid.UUID
+    filename: str
+    chunk_index: int
+    excerpt: str
+    score: float
+
+
+class ComplianceLLM(BaseModel):
+    """Sortie du jugement LLM (validée avant stockage)."""
+
+    verdict: str = "manquant"
+    rationale: str = ""
+
+    @field_validator("verdict", mode="before")
+    @classmethod
+    def _norm(cls, v):
+        return _normalize_verdict(v)
+
+
+class ComplianceAdjust(BaseModel):
+    verdict: str | None = None
+    rationale: str | None = None
+    status: str | None = None
+
+
+class ComplianceOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    project_id: uuid.UUID
+    requirement_id: uuid.UUID
+    requirement_text: str | None = None
+    obligation: str | None = None
+    verdict: str
+    rationale: str | None
+    sources: list[ComplianceSource]
+    status: str
+    created_at: datetime
+    updated_at: datetime

@@ -32,5 +32,8 @@ class Settings(BaseSettings):
     extract_segment_chars: int = 12000
     extract_max_segments: int = 8
 
+    # --- Sprint 3 : matrice de conformité (RAG) ---
+    compliance_top_k: int = 5
+
 
 settings = Settings()

@@ -2,7 +2,7 @@ import uuid
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import Column, Date, DateTime, ForeignKey, Integer, String, Text, func
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
 
 from .config import settings
@@ -113,3 +113,32 @@ class Requirement(Base):
     # extracted | validated | rejected | edited | manual
     status = Column(String, nullable=False, default="extracted")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class ComplianceEntry(Base):
+    __tablename__ = "compliance_entries"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    org_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    project_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    requirement_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("requirements.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    )
+    # conforme | partiel | manquant
+    verdict = Column(String, nullable=False, default="manquant")
+    rationale = Column(Text, nullable=True)
+    # preuves internes citées : [{document_id, filename, chunk_index, excerpt, score}]
+    sources = Column(JSONB, nullable=False, server_default="[]")
+    # auto (jugement LLM) | adjusted (override manuel, préservé au rebuild)
+    status = Column(String, nullable=False, default="auto")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )

@@ -1,8 +1,9 @@
-# AO Copilot — Backend (Sprint 2)
+# AO Copilot — Backend (Sprint 3)
 
 API FastAPI + PostgreSQL/pgvector + Docker. Auth JWT, CRUD projets, ingestion de
 documents (upload S3 → parsing → chunking → embeddings) avec recherche sémantique,
-et extraction des exigences d'un AO via LLM (sortie JSON validée Pydantic).
+extraction des exigences d'un AO via LLM (JSON validé Pydantic), et matrice de
+conformité (RAG sur la base interne + jugement LLM sourcé).
 
 ## Stack
 - **API** : FastAPI (Python 3.12), SQLAlchemy 2.0, Alembic
@@ -107,6 +108,30 @@ curl -X POST "http://localhost:8000/projects/$PROJECT_ID/requirements" \
 `status` suit la revue : `extracted` → `validated` / `rejected` / `edited` (ou `manual`).
 La ré-extraction sur un même document est idempotente (remplace ses exigences).
 
+### Matrice de conformité (Sprint 3)
+
+Pour chaque exigence : recherche RAG dans la base interne (`kind=internal`) +
+jugement LLM **sourcé**. Règle absolue : pas de preuve interne ⇒ `manquant`.
+
+```bash
+# Construire la matrice (un verdict sourcé par exigence non rejetée)
+curl -X POST "http://localhost:8000/projects/$PROJECT_ID/compliance/build" \
+  -H "Authorization: Bearer $TOKEN"
+
+# Consulter la matrice
+curl "http://localhost:8000/projects/$PROJECT_ID/compliance" \
+  -H "Authorization: Bearer $TOKEN"
+
+# Ajuster manuellement un verdict (passe en status=adjusted, préservé au rebuild)
+curl -X PATCH "http://localhost:8000/projects/$PROJECT_ID/compliance/$REQ_ID" \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"verdict":"partiel","rationale":"Couverture partielle confirmée manuellement"}'
+```
+
+`verdict` ∈ `{conforme, partiel, manquant}`. Chaque entrée porte ses `sources`
+(document, extrait, score) pour tracer le jugement. `build` est idempotent et ne
+réécrit pas les entrées ajustées manuellement.
+
 ## Structure
 
 ```
@@ -122,7 +147,8 @@ ao-copilot/
     │   └── versions/
     │       ├── 0001_initial.py       # organizations, users, projects
     │       ├── 0002_documents.py     # documents, document_chunks (VECTOR 1536)
-    │       └── 0003_requirements.py  # requirements (exigences AO)
+    │       ├── 0003_requirements.py  # requirements (exigences AO)
+    │       └── 0004_compliance.py    # compliance_entries (matrice)
     └── app/
         ├── main.py          # app FastAPI + CORS + /health + lifespan (bucket)
         ├── config.py        # settings (env)
@@ -135,12 +161,14 @@ ao-copilot/
         ├── text_extract.py  # extraction PDF/texte + chunking
         ├── embeddings.py    # embeddings OpenAI
         ├── pipeline.py      # ingestion async (BackgroundTasks)
-        ├── llm.py           # extraction des exigences (LLM, JSON validé Pydantic)
+        ├── llm.py           # LLM : extraction exigences + jugement conformité
+        ├── compliance.py    # RAG base interne (pgvector) + assess_requirement
         └── routers/
             ├── auth.py         # register / login
             ├── projects.py     # CRUD projets (scopé org)
             ├── documents.py    # upload / list / delete / search (scopé org)
-            └── requirements.py # extract / list / add / edit / delete (scopé org)
+            ├── requirements.py # extract / list / add / edit / delete (scopé org)
+            └── compliance.py   # build / get / adjust matrice (scopé org)
 ```
 
 ## Migrations
@@ -150,6 +178,6 @@ docker compose run --rm api alembic revision --autogenerate -m "message"
 docker compose run --rm api alembic upgrade head
 ```
 
-## Prochaine étape — Sprint 3 (Matrice de conformité)
-Pour chaque exigence, recherche RAG dans la base interne (pgvector) + jugement LLM
-sourcé (conforme / partiel / manquant) avec ajustement manuel.
+## Prochaine étape — Sprint 4 (Génération de sections + export DOCX)
+Génération des sections de réponse à partir de la matrice (zones non couvertes
+rendues `[À compléter]`), éditeur, puis export DOCX (python-docx).

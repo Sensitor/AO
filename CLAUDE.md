@@ -33,7 +33,7 @@ api/app/
   main.py        # app FastAPI + CORS + /health + lifespan (ensure_bucket)
   config.py      # settings via env (pydantic-settings)
   database.py    # engine + SessionLocal + get_db
-  models.py      # Organization, User, Project, Document, DocumentChunk, Requirement
+  models.py      # Organization, User, Project, Document, DocumentChunk, Requirement, ComplianceEntry
   schemas.py     # Pydantic v2 (in/out)
   security.py    # bcrypt + JWT (create/decode token)
   deps.py        # get_current_user (auth)
@@ -41,20 +41,22 @@ api/app/
   text_extract.py# extraction PDF/texte (pypdf) + chunking
   embeddings.py  # embeddings OpenAI (text-embedding-3-small)
   pipeline.py    # ingestion async : S3 -> texte -> chunks -> embeddings -> DB
-  llm.py         # extraction des exigences via LLM (JSON validé Pydantic)
+  llm.py         # LLM : extraction exigences + jugement de conformité (JSON validé)
+  compliance.py  # RAG base interne (pgvector) + assess_requirement (sourcé)
   routers/auth.py         # register, login
   routers/projects.py     # CRUD projets, scopé par org_id
   routers/documents.py    # upload / list / get / delete / search, scopé par org_id
   routers/requirements.py # extract / list / add / edit / delete exigences (revue)
-api/migrations/        # Alembic (0001 initial, 0002 documents+chunks, 0003 requirements)
+  routers/compliance.py   # build / get / adjust matrice de conformité
+api/migrations/        # Alembic (0001 initial, 0002 docs+chunks, 0003 requirements, 0004 compliance)
 ```
 
 ## État d'avancement
 - **Sprint 0 — FAIT** : socle qui tourne. Auth JWT (register + login OAuth2), CRUD projets scopé organisation, schéma Postgres (`organizations`, `users`, `projects`), extension `vector` activée, Docker Compose (db + api). Vérifié : compile, importe, auth round-trip, migration OK.
 - **Sprint 1 — FAIT** : upload de documents vers S3 (MinIO dev / R2 prod via boto3), parsing PDF/texte (pypdf), chunking + embeddings (OpenAI `text-embedding-3-small`), table `document_chunks` avec colonne `VECTOR(1536)` + index HNSW cosine, ingestion async via `BackgroundTasks` (pas de worker séparé : conforme « pas de sur-ingénierie »), recherche sémantique (`POST /documents/search`). Router `documents` scopé par `org_id`. MinIO ajouté au docker-compose.
 - **Sprint 2 — FAIT** : extraction des exigences d'un AO via LLM (`gpt-4o-mini`, JSON mode, sortie validée Pydantic, règle « ne jamais inventer » dans le prompt), segmentation du texte long + dédup, modèle `Requirement` (scopé `org_id`/`project_id`, lié au document source), migration `0003`. Backend de l'écran de revue : `POST /projects/{id}/requirements/extract` (ré-extraction idempotente) + `GET`/`POST`/`PATCH`/`DELETE` pour lister/ajouter/éditer (valider/rejeter)/supprimer. Pas de frontend (Next.js à venir). Vérifié e2e sur la stack Docker.
-- **Sprint 3 — À FAIRE (prochain)** : matrice de conformité (RAG pgvector, jugement LLM sourcé) + ajustement manuel.
-- Sprint 4 : génération de sections + éditeur + export DOCX (python-docx).
+- **Sprint 3 — FAIT** : matrice de conformité. Pour chaque exigence : RAG pgvector sur la base interne (`kind='internal'`, top-k cosine) + jugement LLM **sourcé** (`conforme`/`partiel`/`manquant`) avec règle « pas de preuve interne = MANQUANT, jamais d'invention ». Modèle `ComplianceEntry` (preuves stockées en JSONB), migration `0004`. Endpoints `POST /projects/{id}/compliance/build` (idempotent, préserve les ajustements manuels), `GET` (matrice), `PATCH /{requirement_id}` (ajustement manuel). Vérifié e2e.
+- **Sprint 4 — À FAIRE (prochain)** : génération de sections + éditeur + export DOCX (python-docx).
 - Sprint 5 : finition + facturation Stripe avant lancement.
 
 ## Décisions tranchées (2026-06-18, avant Sprint 1)

@@ -10,7 +10,7 @@ from functools import lru_cache
 from openai import OpenAI
 
 from .config import settings
-from .schemas import ExtractedRequirement, RequirementsLLM
+from .schemas import ComplianceLLM, ExtractedRequirement, RequirementsLLM
 from .text_extract import chunk_text
 
 logger = logging.getLogger("ao.llm")
@@ -86,3 +86,50 @@ def extract_requirements(text: str) -> list[ExtractedRequirement]:
                 seen.add(key)
                 results.append(req)
     return results
+
+
+COMPLIANCE_SYSTEM_PROMPT = (
+    "Tu évalues si une entreprise répond à une EXIGENCE d'appel d'offres, "
+    "UNIQUEMENT à partir des extraits de sa base documentaire interne fournis.\n"
+    "Règles impératives :\n"
+    "1. N'invente JAMAIS : ne te fie qu'aux extraits fournis. N'utilise aucune "
+    "connaissance externe.\n"
+    "2. verdict :\n"
+    "   - 'conforme' : les extraits prouvent clairement que l'exigence est satisfaite ;\n"
+    "   - 'partiel' : les extraits couvrent partiellement l'exigence ;\n"
+    "   - 'manquant' : les extraits ne prouvent pas la conformité (ou hors sujet).\n"
+    "3. En cas de doute ou d'absence de preuve, réponds 'manquant'.\n"
+    "4. rationale : justification courte citant les éléments des extraits (jamais de fait inventé).\n"
+    '5. Réponds STRICTEMENT en JSON : {"verdict": "...", "rationale": "..."}'
+)
+
+
+def judge_compliance(requirement_text: str, excerpts: list[str]) -> ComplianceLLM:
+    """Juge la conformité d'une exigence au vu d'extraits internes (sourcé, sans invention)."""
+    if not excerpts:
+        return ComplianceLLM(
+            verdict="manquant",
+            rationale="Aucune preuve dans la base documentaire interne.",
+        )
+    context = "\n\n".join(f"[Extrait {i + 1}] {e}" for i, e in enumerate(excerpts))
+    user = f"EXIGENCE :\n{requirement_text}\n\nEXTRAITS INTERNES :\n{context}"
+    resp = _client().chat.completions.create(
+        model=settings.llm_model,
+        messages=[
+            {"role": "system", "content": COMPLIANCE_SYSTEM_PROMPT},
+            {"role": "user", "content": user},
+        ],
+        response_format={"type": "json_object"},
+        temperature=0,
+    )
+    content = resp.choices[0].message.content or "{}"
+    try:
+        return ComplianceLLM.model_validate_json(content)
+    except Exception:
+        try:
+            return ComplianceLLM.model_validate(json.loads(content))
+        except Exception:
+            logger.warning("Jugement LLM non parsable: %.200s", content)
+            return ComplianceLLM(
+                verdict="manquant", rationale="Réponse du modèle illisible."
+            )
