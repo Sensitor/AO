@@ -44,16 +44,16 @@ api/migrations/        # Alembic
 
 ## État d'avancement
 - **Sprint 0 — FAIT** : socle qui tourne. Auth JWT (register + login OAuth2), CRUD projets scopé organisation, schéma Postgres (`organizations`, `users`, `projects`), extension `vector` activée, Docker Compose (db + api). Vérifié : compile, importe, auth round-trip, migration OK.
-- **Sprint 1 — À FAIRE (prochain)** : service `worker`, upload de documents vers S3, parsing PDF/texte, chunking + embeddings, table `document_chunks` avec colonne `VECTOR(n)`, ingestion de la base interne.
+- **Sprint 1 — À FAIRE (prochain)** : service `worker`, upload de documents vers S3 (MinIO dev / R2 prod), parsing PDF/texte, chunking + embeddings (OpenAI `text-embedding-3-small`), table `document_chunks` avec colonne `VECTOR(1536)`, ingestion de la base interne.
 - Sprint 2 : extraction des exigences (LLM, sortie JSON validée Pydantic) + écran de revue.
 - Sprint 3 : matrice de conformité (RAG pgvector, jugement LLM sourcé) + ajustement manuel.
 - Sprint 4 : génération de sections + éditeur + export DOCX (python-docx).
 - Sprint 5 : finition + facturation Stripe avant lancement.
 
-## Décisions encore ouvertes (demander avant de coder le Sprint 1)
-1. Fournisseur d'embeddings → fixe la dimension du `VECTOR(n)`.
-2. Cible S3 : AWS S3, Cloudflare R2, ou MinIO en dev.
-3. Auth : on reste sur JWT maison (défaut actuel) ou bascule Supabase Auth ?
+## Décisions tranchées (2026-06-18, avant Sprint 1)
+1. **Embeddings** : OpenAI `text-embedding-3-small` → colonne `VECTOR(1536)` pour `document_chunks`.
+2. **Stockage** : client boto3 sur API S3. MinIO en dev (service docker-compose), Cloudflare R2 en prod.
+3. **Auth** : on garde le JWT maison du Sprint 0 (pas de bascule Supabase).
 
 ## Conventions
 - SQLAlchemy 2.0, Pydantic v2 (`model_config = ConfigDict(from_attributes=True)` pour les schémas de sortie).
