@@ -86,3 +86,30 @@ class DocumentChunk(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     document = relationship("Document", back_populates="chunks")
+
+
+class Requirement(Base):
+    __tablename__ = "requirements"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    org_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    project_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    # Document AO source (null si exigence ajoutée manuellement).
+    document_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("documents.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    code = Column(String, nullable=True)  # référence/article dans l'AO si présent
+    text = Column(Text, nullable=False)
+    category = Column(String, nullable=True)
+    # obligatoire | souhaité | optionnel
+    obligation = Column(String, nullable=False, default="obligatoire")
+    source_excerpt = Column(Text, nullable=True)  # passage source (pour la revue)
+    # extracted | validated | rejected | edited | manual
+    status = Column(String, nullable=False, default="extracted")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

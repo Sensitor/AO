@@ -1,7 +1,8 @@
-# AO Copilot — Backend (Sprint 1)
+# AO Copilot — Backend (Sprint 2)
 
-API FastAPI + PostgreSQL/pgvector + Docker. Auth JWT, CRUD projets, et ingestion
-de documents (upload S3 → parsing → chunking → embeddings) avec recherche sémantique.
+API FastAPI + PostgreSQL/pgvector + Docker. Auth JWT, CRUD projets, ingestion de
+documents (upload S3 → parsing → chunking → embeddings) avec recherche sémantique,
+et extraction des exigences d'un AO via LLM (sortie JSON validée Pydantic).
 
 ## Stack
 - **API** : FastAPI (Python 3.12), SQLAlchemy 2.0, Alembic
@@ -75,6 +76,37 @@ curl -X POST http://localhost:8000/documents/search \
 `kind` vaut `internal` (base documentaire) ou `tender` (AO à analyser) ; `project_id`
 est optionnel pour rattacher le document à un projet.
 
+### Exigences (Sprint 2)
+
+Extraction des exigences d'un document AO via LLM (le LLM n'invente jamais : il
+n'extrait que ce qui est présent), puis revue manuelle.
+
+```bash
+# Uploader l'AO en kind=tender (récupère son id), puis extraire les exigences
+curl -X POST "http://localhost:8000/projects/$PROJECT_ID/requirements/extract" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"document_id":"<id_du_doc_AO>"}'
+
+# Lister les exigences extraites
+curl "http://localhost:8000/projects/$PROJECT_ID/requirements" \
+  -H "Authorization: Bearer $TOKEN"
+
+# Revue : éditer / valider / rejeter une exigence
+curl -X PATCH "http://localhost:8000/projects/$PROJECT_ID/requirements/$REQ_ID" \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"status":"validated","obligation":"obligatoire"}'
+
+# Revue : ajouter une exigence manquée par le LLM
+curl -X POST "http://localhost:8000/projects/$PROJECT_ID/requirements" \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"text":"Disposer d'\''une certification ISO 27001","category":"sécurité"}'
+```
+
+`obligation` ∈ `{obligatoire, souhaité, optionnel}` (normalisée automatiquement) ;
+`status` suit la revue : `extracted` → `validated` / `rejected` / `edited` (ou `manual`).
+La ré-extraction sur un même document est idempotente (remplace ses exigences).
+
 ## Structure
 
 ```
@@ -88,13 +120,14 @@ ao-copilot/
     ├── migrations/
     │   ├── env.py
     │   └── versions/
-    │       ├── 0001_initial.py     # organizations, users, projects
-    │       └── 0002_documents.py   # documents, document_chunks (VECTOR 1536)
+    │       ├── 0001_initial.py       # organizations, users, projects
+    │       ├── 0002_documents.py     # documents, document_chunks (VECTOR 1536)
+    │       └── 0003_requirements.py  # requirements (exigences AO)
     └── app/
         ├── main.py          # app FastAPI + CORS + /health + lifespan (bucket)
         ├── config.py        # settings (env)
         ├── database.py      # engine + session
-        ├── models.py        # Organization, User, Project, Document, DocumentChunk
+        ├── models.py        # Organization, User, Project, Document, DocumentChunk, Requirement
         ├── schemas.py       # Pydantic v2
         ├── security.py      # JWT + bcrypt
         ├── deps.py          # get_current_user
@@ -102,10 +135,12 @@ ao-copilot/
         ├── text_extract.py  # extraction PDF/texte + chunking
         ├── embeddings.py    # embeddings OpenAI
         ├── pipeline.py      # ingestion async (BackgroundTasks)
+        ├── llm.py           # extraction des exigences (LLM, JSON validé Pydantic)
         └── routers/
-            ├── auth.py      # register / login
-            ├── projects.py  # CRUD projets (scopé org)
-            └── documents.py # upload / list / delete / search (scopé org)
+            ├── auth.py         # register / login
+            ├── projects.py     # CRUD projets (scopé org)
+            ├── documents.py    # upload / list / delete / search (scopé org)
+            └── requirements.py # extract / list / add / edit / delete (scopé org)
 ```
 
 ## Migrations
@@ -115,5 +150,6 @@ docker compose run --rm api alembic revision --autogenerate -m "message"
 docker compose run --rm api alembic upgrade head
 ```
 
-## Prochaine étape — Sprint 2 (Extraction des exigences)
-Extraction des exigences d'un AO via LLM (sortie JSON validée Pydantic) + écran de revue.
+## Prochaine étape — Sprint 3 (Matrice de conformité)
+Pour chaque exigence, recherche RAG dans la base interne (pgvector) + jugement LLM
+sourcé (conforme / partiel / manquant) avec ajustement manuel.

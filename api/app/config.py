@@ -27,5 +27,10 @@ class Settings(BaseSettings):
     chunk_size: int = 1000
     chunk_overlap: int = 150
 
+    # --- Sprint 2 : extraction des exigences (LLM) ---
+    llm_model: str = "gpt-4o-mini"
+    extract_segment_chars: int = 12000
+    extract_max_segments: int = 8
+
 
 settings = Settings()
